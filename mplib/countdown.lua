@@ -29,15 +29,19 @@
 
 
 shared.countdownTimer = 3
+shared.countdownName = "Countdown"
 countdown = {skip = false, seconds = nil}
 
 --- Initialize count down timer (server)
 --
 -- Initializes a count down timer that can be displayed for all players.
 -- @param[type=number] countdownSeconds Time in seconds that represents the duration of the countdown.
-function countdownInit(countdownSeconds)
+function countdownInit(countdownSeconds, countdownName)
     shared.countdownTimer = countdownSeconds
 	countdownFinished = LoadSound("timer/game-start.ogg")
+
+	shared.countdownName = countdownName or "Countdown"
+
 end
 
 --- Tick down the timer (server)
@@ -45,18 +49,26 @@ end
 -- Decrement the timer by `dt`. Players are locked during countdown.
 -- @param[type=number] dt Time in seconds that represents the duration of the countdown.
 -- @return[type=bool] true if the timer is still active.
-function countdownTick(dt)
+function countdownTick(dt, teamID , disablePlayer)
 	if shared.countdownTimer <= 0.0 then return false end
+
+	teamID = teamID or 0
+	if disablePlayer == nil then disablePlayer = true end
 
 	shared.countdownTimer = shared.countdownTimer - dt
 	if shared.countdownTimer > 0 then
 		for p in Players() do
-            SetPlayerWalkingSpeed(0, p)
-			DisablePlayerDamage(p)
-			SetPlayerParam("disableinteract", true, p)
+			if teamsGetTeamId(p) == teamID or teamID == 0 then
+				if disablePlayer then
+            		SetPlayerWalkingSpeed(0, p)
+					DisablePlayerDamage(p)
+					SetPlayerParam("disableinteract", true, p)
+				end
+			end
         end
 	else
 		PlaySound(countdownFinished) --NOTE: placed here since UISound stops when the window closes
+		PostEvent("countdownFinished", shared.countdownName, true)
 	end
 
 	shared.countdownTimer = math.max(shared.countdownTimer, 0.0)
@@ -67,8 +79,10 @@ end
 --
 -- Draws the countdown timer and a 'Match starts in...' label. 
 -- @return[type=bool] true if the timer is still active.
-function countdownDraw()
+function countdownDraw(message)
 	if shared.countdownTimer <= 0.0 then return false end
+
+	message = message or "Match starts in..."
 
 	if client.countdownSeconds == nil then
 		client.countdownSeconds = math.ceil(shared.countdownTimer)
@@ -85,7 +99,7 @@ function countdownDraw()
 		client.countdownSeconds = currSeconds
 	end
 
-	hudDrawInformationMessage("Match starts in...", math.min(shared.countdownTimer - 0.5,0.25)/0.25)
+	hudDrawInformationMessage(message, math.min(shared.countdownTimer - 0.5,0.25)/0.25)
 	hudDrawCountDown(shared.countdownTimer)
 
 	return shared.countdownTimer > 0.0

@@ -224,9 +224,8 @@ end
 -- @param[type=number] dt Time step in seconds.
 -- @return[type=bool] `true` if the pending game start was triggered this tick, `false` otherwise.
 function teamsTick(dt)
-
     _teamState.stateTime = _teamState.stateTime + dt
-        
+
     for p in PlayersRemoved() do
         for t=1,#shared._teamState.teams do
             local players = shared._teamState.teams[t].players
@@ -399,6 +398,7 @@ end
 
 function _teamsAssignPlayers()
     -- Hiders team has team ID 1
+    local allPlayers = GetAllPlayers()
     if not teamsIsSetup() then
         local allPlayers = GetAllPlayers()
         local totalPlayers = #allPlayers
@@ -451,6 +451,18 @@ function _teamsAssignPlayers()
         -- Assign remaining neutral players to Team 1 (hiders)
         for _, player in ipairs(neutralPlayers) do
             shared._teamState.teams[1].players[#shared._teamState.teams[1].players + 1] = player
+        end
+    else
+        local neutralPlayers = {}
+        for _, p in ipairs(allPlayers) do
+            if teamsGetTeamId(p) == 0 then
+                neutralPlayers[#neutralPlayers + 1] = p
+            end
+        end
+
+        -- Rejoining players or new players will always be hunters 
+        for _, player in ipairs(neutralPlayers) do
+            shared._teamState.teams[2].players[#shared._teamState.teams[2].players + 1] = player
         end
     end
 
