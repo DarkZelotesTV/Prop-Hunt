@@ -133,6 +133,10 @@ function teamsGetPlayerTeamsList()
     return playerTeamList
 end
 
+function teamsGetTotalTeamsCount()
+    return #shared._teamState.teams
+end
+
 --- Get the list of players belonging to a specific team.
 --
 -- @param[type=number] teamId Team ID (1-based).
@@ -175,11 +179,11 @@ end
 -- pick teams.
 --
 -- @param[type=bool] skipCountdown Whether to skip the team selection countdown.
-function teamsStart(skipCountdown)
+function teamsStart(skipCountdown, hunters, forceLimit)
     if skipCountdown then
+        _teamsAssignPlayers(hunters, forceLimit)
         shared._teamState.state = _DONE
         _teamState.skippedCountdown = true
-        _teamsAssignPlayers()
     else
         if shared._teamState.state == _WAITING then
             shared._teamState.state = _COUNTDOWN
@@ -246,7 +250,7 @@ function teamsTick(dt)
             SetPlayerColor(color[1], color[2], color[3], p)
         end
     end
-    
+
     for i=1,#_teamState.pendingTeamSwaps do
         local playerId = _teamState.pendingTeamSwaps[i][1]
         local teamId = _teamState.pendingTeamSwaps[i][2]
@@ -394,22 +398,59 @@ function server._teamsJoinTeam(playerId, teamId)
 end
 
 function _teamsAssignPlayers()
-    for p in Players() do
-        if teamsGetTeamId(p) == 0 then
-            local newTeam = 1
-            local minCount = 999
+    -- Hiders team has team ID 1
+    if not teamsIsSetup() then
+        local allPlayers = GetAllPlayers()
+        local totalPlayers = #allPlayers
 
-            for t=1,#shared._teamState.teams do
-                local count = #shared._teamState.teams[t].players
+        -- Clamp hunters so at least one hider
+        local amountHunters = math.min(server.lobbySettings.amountHunters, totalPlayers - 1)
+        local randomTeams = server.lobbySettings.randomTeams == 1
+        local enforceLimit = server.lobbySettings.enforceLimit == 1
 
-                if count < minCount then
-                    minCount = count
-                    newTeam = t
-                end
+        -- Reset teams if randomTeams is enabled
+        if randomTeams then
+            shared._teamState.teams[1].players = {}
+            shared._teamState.teams[2].players = {}
+        end
+
+        -- Gather neutral/unassigned players
+        local neutralPlayers = {}
+        for _, p in ipairs(allPlayers) do
+            if teamsGetTeamId(p) == 0 then
+                neutralPlayers[#neutralPlayers + 1] = p
+            end
+        end
+
+        if enforceLimit then
+            -- Trim Team 2 (hunters) if too many and move extras to Team 1
+            while #shared._teamState.teams[2].players > amountHunters do
+                local idx = math.random(1, #shared._teamState.teams[2].players)
+                local player = table.remove(shared._teamState.teams[2].players, idx)
+                shared._teamState.teams[1].players[#shared._teamState.teams[1].players + 1] = player
             end
 
-            local players = shared._teamState.teams[newTeam].players
-            players[1 + #players] = p
+            -- Determine hunters still needed
+            local huntersNeeded = amountHunters - #shared._teamState.teams[2].players
+
+            -- If not enough neutral players, trim Team 1 to free players for Team 2
+            while huntersNeeded > #neutralPlayers and #shared._teamState.teams[1].players > 0 do
+                local idx = math.random(1, #shared._teamState.teams[1].players)
+                local player = table.remove(shared._teamState.teams[1].players, idx)
+                neutralPlayers[#neutralPlayers + 1] = player
+            end
+        end
+
+        -- Fill Team 2 (hunters) from neutral players
+        while #shared._teamState.teams[2].players < amountHunters and #neutralPlayers > 0 do
+            local idx = math.random(1, #neutralPlayers)
+            local player = table.remove(neutralPlayers, idx)
+            shared._teamState.teams[2].players[#shared._teamState.teams[2].players + 1] = player
+        end
+
+        -- Assign remaining neutral players to Team 1 (hiders)
+        for _, player in ipairs(neutralPlayers) do
+            shared._teamState.teams[1].players[#shared._teamState.teams[1].players + 1] = player
         end
     end
 

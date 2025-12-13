@@ -1288,11 +1288,14 @@ function hudDrawGameSetup(settings)
 		end
 
 		if uiDrawPrimaryButton("Start", 290) then
-			ServerCall("server.hudPlayPressed")
-			playPressed = true
+			if GetPlayerCount() == 1 then 
+				hudShowBanner ("Atleast 2 players are required to start game.", {0,0,0})
+			else
+				ServerCall("server.hudPlayPressed")
+				playPressed = true
+			end
 		end
-		
-		
+
 		UiPop()
 		
 		UiPush()

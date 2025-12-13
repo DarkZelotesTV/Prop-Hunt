@@ -79,8 +79,11 @@ end
 --      }
 --      spawnSetDefaultLoadout(defaultLoadout)
 -- end
-function spawnSetDefaultLoadout(loadout)
-    _spawnState.defaultLoadout = loadout
+function spawnSetDefaultLoadoutForTeam(id, loadout)
+    if not _spawnState.defaultLoadout then
+        _spawnState.defaultLoadout = {}
+    end
+    _spawnState.defaultLoadout[id] = loadout
 end
 
 --- Enable or disable respawning at the player's last position (server).
@@ -206,7 +209,12 @@ function spawnTick(dt, playerGroupList)
 
         if doRespawn then
             local t = spawnPickSpawnTransform(p, playerGroupList)
-            spawnSpawnPlayer(t, _spawnState.defaultLoadout, p)
+            local teams = teamsGetTotalTeamsCount()
+            for i=1,teams do
+                if teamsGetTeamId(p) == i then 
+                    spawnSpawnPlayer(t, _spawnState.defaultLoadout[i], p)
+                end
+            end
             _spawnState.deadTime[p] = 0.0
         end
 
