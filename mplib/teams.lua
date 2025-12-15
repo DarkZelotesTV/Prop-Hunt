@@ -239,6 +239,7 @@ function teamsTick(dt)
     end
 
     if shared._teamState.state == _DONE then
+       
         for p in PlayersAdded() do
             _teamsAssignPlayers()
         end
@@ -276,9 +277,9 @@ function teamsTick(dt)
 
     if shared._teamState.state == _COUNTDOWN then
         if _teamState.stateTime > _COUNTDOWNTIME then
+            _teamsAssignPlayers()
             shared._teamState.state = _LOCKED
             _teamState.stateTime = 0.0
-            _teamsAssignPlayers()
         end
     end
 
@@ -396,6 +397,25 @@ function server._teamsJoinTeam(playerId, teamId)
     _teamState.pendingTeamSwaps[1 + #_teamState.pendingTeamSwaps] = {playerId, teamId}
 end
 
+function teamsAssignToTeam(id, newTeam)
+    local teamID = teamsGetTeamId(id)
+
+    for i = 1, #shared._teamState.teams[teamID].players do
+        if shared._teamState.teams[teamID].players[i] == id then
+            table.remove(shared._teamState.teams[teamID].players, i)
+            shared._teamState.teams[newTeam].players[1 + #shared._teamState.teams[newTeam].players] = id
+            break
+        end
+    end
+
+    local teamColors = {}
+    for i=1,#shared._teamState.teams do
+        teamColors[1 + #teamColors] = teamsGetColor(i)
+    end
+
+    PostEvent("teamsupdated", teamsGetPlayerTeamsList(), teamColors)
+end
+
 function _teamsAssignPlayers()
     -- Hiders team has team ID 1
     local allPlayers = GetAllPlayers()
@@ -469,6 +489,7 @@ function _teamsAssignPlayers()
     local teamColors = {}
     for i=1,#shared._teamState.teams do
         teamColors[1 + #teamColors] = teamsGetColor(i)
+
     end
 
     PostEvent("teamsupdated", teamsGetPlayerTeamsList(), teamColors)
@@ -551,6 +572,7 @@ function _teamsDrawTeamBox(teamId, width, height)
 
             if uiDrawSecondaryButton("Join", width - 2 * 8, team ~= 0 or (shared._teamState.state and shared._teamState.state >= _LOCKED)) then
                 ServerCall("server._teamsJoinTeam", GetLocalPlayer(), teamId)
+
             end
         end
     UiPop()
