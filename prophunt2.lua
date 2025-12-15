@@ -59,7 +59,8 @@ client.hint.closestPlayerArrowHint.player = 0
 
 function server.init()
 	RegisterTool("taunt", "taunt", "", 1)
-	
+	taunt = LoadSound('assets/taunt')
+
 	hudInit(true)
 	hudAddUnstuckButton()
 	teamsInit(2)
@@ -93,7 +94,7 @@ function server.start(settings)
 	server.game.hunterHintTimer = settings.hunterHinttimer
 	--server.lobbySettings.joinHunters = settings.joinHunters
 
-	if settings.pipeBombTimer == -1 then 
+	if settings.pipeBombTimer == -1 then
 		server.game.hunterPIpeBombEnabled = false
 	end
 
@@ -118,7 +119,7 @@ function server.deadTick()
 	for id in Players() do
 		if teamsGetTeamId(id) == 1 then
 			local health = GetPlayerHealth(id)
-			if health == 0 and server.game.hunterFreed then 
+			if health == 0 and server.game.hunterFreed then
 
 				eventlogPostMessage({id, " Was found"  })
 				shared.hiders[id].dead = true
@@ -171,7 +172,7 @@ function server.tick(dt)
 		return
 	end
 
-	if #teamsGetTeamPlayers(1) == 0 and teamsIsSetup() and server.game.hunterFreed then 
+	if #teamsGetTeamPlayers(1) == 0 and teamsIsSetup() and server.game.hunterFreed then
 		server.game.time = 0
 	end
 
@@ -245,17 +246,17 @@ function server.hunterTick(id)
 			--SetToolAmmo("pipebomb", math.min(GetToolAmmo("pipebomb", id) + 1, 3), id)
 		end
 
-		if server.game.hunterPipeBombTimer < 0 and server.game.hunterPIpeBombEnabled then
+		if server.game.hunterPipeBombTimer < 0 then
 			server.game.hunterPipeBombTimer = server.lobbySettings.pipeBombTimer
 			SetToolAmmo("pipebomb", math.min(GetToolAmmo("pipebomb", id) + 1, 3), id)
 		end
 
-		if server.game.bluetideTimer < 0 and server.game.bluetideTimer then
+		if server.game.bluetideTimer < 0 then
 			server.game.bluetideTimer = server.lobbySettings.bluetideTimer
 			SetToolAmmo("steroid", math.min(GetToolAmmo("steroid", id) + 1, 3), id)
 		end
 
-		if server.game.hunterHintTimer < 0 and server.game.hunterHintTimer then
+		if server.game.hunterHintTimer < 0 then
 			server.game.hunterHintTimer = server.lobbySettings.hunterHinttimer
 			server.TriggerHint()
 		end
@@ -320,7 +321,7 @@ function server.TriggerHint()
 			ClientCall(myId, "client.hintShowCloestPlayer", math.floor(closestDist * 10) / 10, 5)
 		end
 
-		if server.game.time <= 60 and closestDist > 50 then
+		if server.game.time < (server.lobbySettings.roundLength * 0.65) and closestDist > 50 then
 			ClientCall(myId, "client.hintShowArrow", cloestTransform, closestPlayer, 5)
 		end
 	end
@@ -345,13 +346,12 @@ function server.hiderTick(id)
 				server.propRegenerate(id, shared.hiders[id].propBackupShape)
 				shared.hiders[id].isPropPlaced = false
 				ClientCall(0, "client.highlightPlayer", shared.hiders[id].propBody)
+				SetPlayerTransform(Transform(center,GetPlayerCameraTransform(id).rot), id)
 			end
 
 			if IsPointInBoundaries(GetPlayerTransform(id).pos) then
-				
+
 			end
-
-
 		end
 	end
 end
@@ -371,6 +371,7 @@ end
 function server.taunt(pos)
 	DebugPrint("taunt")
 	ClientCall(0, "client.playTaunt", pos)
+	PlaySound(taunt,pos,10,true,1)
 end
 
 function server.update()
@@ -524,7 +525,7 @@ end
 
 
 function server.clientHideRequest(playerid)
-    if not shared.hiders[playerid].isPropClipping then 
+    if not shared.hiders[playerid].isPropClipping then
         shared.hiders[playerid].isPropPlaced = true
     end
 end
@@ -579,7 +580,7 @@ end
 
 function client.init()
 	client.arrow = LoadSprite("assets/arrow.png")
-	taunt = LoadSound('assets/taunt.ogg')
+	taunt = LoadSound('assets/taunt')
 end
 
 function client.tick()
@@ -587,24 +588,24 @@ function client.tick()
 	SetLowHealthBlurThreshold(0.01)
 
 	local matchEnded = shared.game.time <= 0.0
-	
+
 	if not matchEnded then
-		for i = 1, #client.game.hider.hiderOutline do 
-			if client.game.hider.hiderOutline[i].timer > 0 then 
+		for i = 1, #client.game.hider.hiderOutline do
+			if client.game.hider.hiderOutline[i].timer > 0 then
 				client.game.hider.hiderOutline[i].timer = client.game.hider.hiderOutline[i].timer - GetTimeStep()
 				DrawBodyHighlight(client.game.hider.hiderOutline[i].body, client.game.hider.hiderOutline[i].timer)
 				DrawBodyOutline(client.game.hider.hiderOutline[i].body,1,0,0, client.game.hider.hiderOutline[i].timer/4)
 			end
 		end
 
-		for i = 1, #client.game.hider.hiderOutline do 
-			if client.game.hider.hiderOutline[i].timer < 0 then 
+		for i = 1, #client.game.hider.hiderOutline do
+			if client.game.hider.hiderOutline[i].timer < 0 then
 				table.remove(client.game.hider.hiderOutline, i)
 			end
 		end
 	end
 
-	
+
 
 	if teamsGetTeamId(GetLocalPlayer()) == 1 and teamsIsSetup() then
 		local body = shared.hiders[GetLocalPlayer()].propBody
@@ -639,7 +640,7 @@ function client.update()
 
 
 		if GetString("game.player.tool", GetLocalPlayer()) == "taunt" and InputPressed("usetool") then
-		
+
 			ServerCall("server.taunt", GetPlayerTransform(GetLocalPlayer()).pos)
 		end
 	end
@@ -650,7 +651,7 @@ function client.enableThirdPerson(value)
 end
 
 function client.sendHideRequest()
-    if InputPressed("flashlight") then 
+    if InputPressed("flashlight") then
 		local playerID = GetLocalPlayer()
         if not shared.hiders[playerID].isPropClipping and shared.hiders[playerID].propBody ~= -1 then
             ServerCall("server.clientHideRequest", playerID)
@@ -660,7 +661,7 @@ end
 
 function client.SelectProp()
 	client.HighlightDynamicBodies()
-	
+
 	if client.game.hider.lookAtShape ~= -1 then
 		if InputPressed("interact") then
 			ServerCall("server.PropSpawnRequest", GetLocalPlayer(), client.game.hider.lookAtShape, GetCameraTransform())
@@ -674,16 +675,16 @@ function client.playTaunt(pos)
 end
 
 function client.HighlightDynamicBodies()
-	
+
 	if shared.hiders[GetLocalPlayer()].isPropPlaced then return end
 	local playerTransform = GetPlayerTransform()
 	local aa = VecAdd(playerTransform.pos, Vec(5, 5, 5))
 	local bb = VecAdd(playerTransform.pos, Vec(-5, -5, -5))
 
 	QueryRequire("physical dynamic large")
-	
+
 	local vehicles = FindVehicles("", true)
-	
+
 	for i = 1, #vehicles do
 		QueryRejectVehicle(vehicles[i])
 	end
@@ -729,6 +730,8 @@ function client.highlightClippingProps()
     end
 end
 
+
+
 function client.hintShowCloestPlayer(dist, timer)
 	client.hint.closestPlayerHint = {}
 	client.hint.closestPlayerHint.distance = dist
@@ -753,36 +756,30 @@ function client.showHint()
 		client.hint.closestPlayerHint.timer = client.hint.closestPlayerHint.timer - GetTimeStep()
 	end
 
-	--if client.hint.closestPlayerArrowHint.timer > 0 then
-	--	local pos
-	--	if teamsGetTeamId(GetLocalPlayer()) == 1 then
-	--		pos = TransformToParentPoint(GetPlayerTransform(client.hint.closestPlayerArrowHint.player), Vec(0,1, -2))
-	--	else
-	--		pos = TransformToParentPoint(GetPlayerTransform(GetLocalPlayer()), Vec(0,1, -2))
-	--	end
---
-	--	cPos = Vec()
---
-	--	cPos[1] = client.hint.closestPlayerArrowHint.transform.pos[1] + math.sin(GetTime() * VecLength(GetPlayerVelocity(GetLocalPlayer()))* 20)
-	--	cPos[3] = client.hint.closestPlayerArrowHint.transform.pos[3] + math.cos(GetTime() * VecLength(GetPlayerVelocity(GetLocalPlayer()))*10)
-	--	cPos[2] = client.hint.closestPlayerArrowHint.transform.pos[2] + math.sin(GetTime() * VecLength(GetPlayerVelocity(GetLocalPlayer()))*10)
---
-	--	local rot = QuatAlignXZ(VecNormalize(VecSub(pos, cPos)), VecNormalize(VecSub(pos, GetCameraTransform().pos)))
-	--	DrawSprite(client.arrow, Transform(pos, rot), 0.7, 0.7, 0.7 ,0.7,1,1,1,false,false,false)
-	--	client.hint.closestPlayerArrowHint.timer = client.hint.closestPlayerArrowHint.timer 
---
---
-	--	if VecLength(VecSub(pos, client.hint.closestPlayerArrowHint.transform.pos)) < 50  then
-	--		client.hint.closestPlayerArrowHint.timer = client.hint.closestPlayerArrowHint.timer - GetTimeStep()*10
-	--	end
---
-	--	client.hint.closestPlayerArrowHint.timer = client.hint.closestPlayerArrowHint.timer - GetTimeStep()/2
-	--end
+    if client.hint.closestPlayerArrowHint.timer > 0 then
+		local pos
+		if teamsGetTeamId(GetLocalPlayer()) == 1 then
+			pos = TransformToParentPoint(GetPlayerTransform(client.hint.closestPlayerArrowHint.player), Vec(0,1, -2))
+		else
+			pos = TransformToParentPoint(GetPlayerTransform(GetLocalPlayer()), Vec(0,1, -2))
+		end
+
+
+		local rot = QuatAlignXZ(VecNormalize(VecSub(pos, client.hint.closestPlayerArrowHint.transform.pos)), VecNormalize(VecSub(pos, GetCameraTransform().pos)))
+		DrawSprite(client.arrow, Transform(pos, rot), 0.7, 0.7, 0.7 ,0.7,1,1,1,false,false,false)
+
+
+		if VecLength(VecSub(pos, client.hint.closestPlayerArrowHint.transform.pos)) < 40 then
+			client.hint.closestPlayerArrowHint.timer = client.hint.closestPlayerArrowHint.timer - GetTimeStep()*10
+		end
+
+    	client.hint.closestPlayerArrowHint.timer = client.hint.closestPlayerArrowHint.timer - GetTimeStep()/2
+    end
 end
 
 function client.draw(dt)
 	-- during countdown, display the title of the game mode.
-	
+
 	hudDrawTitle(dt, "Prophunt!")
 	hudDrawBanner(dt)
 
@@ -812,9 +809,7 @@ function client.draw(dt)
 			client.showHint()
 		end
 
-		if not matchEnded and teamsGetTeamId(GetLocalPlayer()) == 2 then
-			hudDrawPlayerWorldMarkers(teamsGetTeamPlayers(2), true, 40.0, teamsGetColor(2))
-		end
+		hudDrawPlayerWorldMarkers(teamsGetTeamPlayers(2), false, 100, teamsGetColor(2))
 
 		spectateDraw()
 		hudDrawRespawnTimer(spawnGetPlayerRespawnTimeLeft(GetLocalPlayer()))
@@ -826,14 +821,14 @@ function client.draw(dt)
 
 		local hunterTable = {}
 		local hiderTable = {}
-		for i = 1, #shared.stats.OriginalHunters do 
+		for i = 1, #shared.stats.OriginalHunters do
 			hunterTable[#hunterTable+1] = {
 				player = shared.stats.OriginalHunters[i],
 				columns = { "Hunter" }
 			}
 		end
 
-		for id in Players() do 
+		for id in Players() do
 			if teamsGetTeamId(id) == 1 then
 				hiderTable[#hiderTable+1] = {
 					player = id,
@@ -841,14 +836,14 @@ function client.draw(dt)
 				}
 			end
 		end
-		for i = 1, #shared.stats.wasHider do 
+		for i = 1, #shared.stats.wasHider do
 			hiderTable[#hiderTable+1] = {
 				player = shared.stats.wasHider[i][1],
 				columns = { shared.stats.wasHider[i][2] .. " seconds" }
 			}
 		end
 
-		if #teamsGetTeamPlayers(1) == 0 then 
+		if #teamsGetTeamPlayers(1) == 0 then
 			stats = {{
 					name = "Hunters Win",
 					color = teamsGetColor(2),
@@ -892,7 +887,7 @@ end
 
 function client.DrawTransformPrompt()
 	if client.game.hider.lookAtShape ~= -1 then
-		
+
 		local boundsAA, boundsBB = GetBodyBounds(GetShapeBody(client.game.hider.lookAtShape))
 		local middle = VecLerp(boundsAA, boundsBB, 0.5)
 		AutoTooltip("Transform Into Prop (E)", middle, false, 40, 1)
@@ -1032,7 +1027,7 @@ function makePlayerInvisible(bool)
         local animator = animators[i]
         local shapes = GetEntityChildren(animator, "", true, "shape")
 
-        for j = 1, #shapes do 
+        for j = 1, #shapes do
             local aa,bb = GetShapeBounds(shapes[j])
             local middle = VecLerp(aa,bb,0.5)
             if bool then
