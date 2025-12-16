@@ -148,7 +148,7 @@ end
 
 function server.tick(dt)
 	-- AutoInspectWatch(shared, " ", 3, " ", false)
-	
+
 	if teamsTick(dt) then
 		spawnRespawnAllPlayers()
 
@@ -189,7 +189,7 @@ function server.tick(dt)
 
 		teamsAssignToTeam(id, 2)
 		spawnRespawnPlayer(id)
-		
+
 		SetPlayerParam("healthRegeneration", true, id)
 		SetPlayerParam("collisionMask", 1, id)
 		SetPlayerParam("walkingSpeed", 1, id)
@@ -345,6 +345,7 @@ end
 function server.hiderTick(id)
 	if teamsIsSetup() then
 		SetPlayerParam("healthRegeneration", false, id)
+		SetPlayerVehicle(0, id)
 		if shared.hiders[id].propBody ~= -1 then
 			SetPlayerHidden(id)
 			if not shared.hiders[id].isPropPlaced then
@@ -356,12 +357,14 @@ function server.hiderTick(id)
 
 			if IsBodyBroken(shared.hiders[id].propBody) then
 				SetPlayerHealth(GetPlayerHealth(id) - 0.33, id)
-				server.propRegenerate(id, shared.hiders[id].propBackupShape)
-				shared.hiders[id].isPropPlaced = false
-				ClientCall(0, "client.highlightPlayer", shared.hiders[id].propBody)
+
 				local aa,bb = GetBodyBounds(shared.hiders[id].propBody)
 				local center = VecLerp(aa, bb, 0.5)
 				SetPlayerTransform(Transform(VecAdd(center, Vec(0, 0.0, 0)),GetPlayerCameraTransform(id).rot), id)
+
+				server.propRegenerate(id, shared.hiders[id].propBackupShape)
+				shared.hiders[id].isPropPlaced = false
+				ClientCall(0, "client.highlightPlayer", shared.hiders[id].propBody)
 			end
 
 			if IsPointInBoundaries(GetPlayerTransform(id).pos) then
@@ -498,7 +501,7 @@ function server.PropSpawnRequest(playerid, propid,cameraTransform)
 
 		local bodyTransform = GetBodyTransform(newBody)
 
-		SetBodyTransform(newBody, Transform(VecAdd(GetPlayerTransform().pos, Vec(0, 0, 2)), bodyTransform.rot))
+		SetBodyTransform(newBody, Transform(VecAdd(GetPlayerTransform(propid).pos, Vec(0, 0, 2)), bodyTransform.rot))
 		SetBodyDynamic(newBody, true)
 		disableBodyCollission(newBody, true)
 
@@ -525,7 +528,7 @@ function server.propRegenerate(playerid, propid)
 
 		local bodyTransform = GetBodyTransform(newBody)
 
-		SetBodyTransform(newBody, GetPlayerTransform())
+		SetBodyTransform(newBody, GetPlayerTransform(playerid))
 		SetBodyDynamic(newBody, true)
 		disableBodyCollission(newBody, true)
 
@@ -537,7 +540,6 @@ function server.propRegenerate(playerid, propid)
 		--SetInt('options.game.thirdperson',1, true)
 	end
 end
-
 
 function server.clientHideRequest(playerid)
     if not shared.hiders[playerid].isPropClipping then
