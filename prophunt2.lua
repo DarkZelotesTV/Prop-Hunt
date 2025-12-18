@@ -373,7 +373,7 @@ function server.TriggerHint()
 			elseif cloestTransform.pos[2] < myPos then
 				detail = "and is above you."
 			else
-				detail = "and is bellow you."
+				detail = "and is below you."
 			end
 		end
 
@@ -393,22 +393,24 @@ function server.hiderTick(id)
 		SetPlayerParam("healthRegeneration", false, id)
 		SetPlayerVehicle(0, id)
 
-		local dt = GetTimeStep()
-		server.game.tauntReloadTimer = server.game.tauntReloadTimer - dt
+		if shared.game.hunterFreed then
+			local dt = GetTimeStep()
+			server.game.tauntReloadTimer = server.game.tauntReloadTimer - dt
 
-		if server.game.tauntReloadTimer < 0 then
-			if server.game.forcedTaunt then
-				server.game.forcedTaunt = false
-				server.taunt(GetPlayerTransform(id).pos, id)
-				SetToolAmmo("taunt", 6, id)
-			end
+			if server.game.tauntReloadTimer < 0 then
+				if server.game.forcedTaunt then
+					server.game.forcedTaunt = false
+					server.taunt(GetPlayerTransform(id).pos, id)
+					SetToolAmmo("taunt", 6, id)
+				end
 
-			server.game.tauntReloadTimer = server.lobbySettings.tauntReload
-			SetToolAmmo("taunt", math.min(GetToolAmmo("taunt", id) + 1, 10), id)
-			if GetToolAmmo("taunt", id) == 10 then
-				server.game.forcedTaunt = true
-			else
-				server.game.forcedTaunt = false
+				server.game.tauntReloadTimer = server.lobbySettings.tauntReload
+				SetToolAmmo("taunt", math.min(GetToolAmmo("taunt", id) + 1, 10), id)
+				if GetToolAmmo("taunt", id) == 10 then
+					server.game.forcedTaunt = true
+				else
+					server.game.forcedTaunt = false
+				end
 			end
 		end
 
@@ -711,8 +713,8 @@ function client.tick()
 				local outwards = QuatRotateVec(camera_rotation_quat, Vec(0, 0, 1))
 
 				QueryRejectBody(body)
-				local dir = VecNormalize(VecSub(AutoSM_Get(client.camera.SM.pos), body_center))
-				local hit, dist = QueryRaycast(body_center, dir, client.camera.dist, 0.2, false)
+				local dir = VecNormalize(VecSub(AutoSM_Get(client.camera.SM.pos), VecAdd(body_center,Vec(0,1,0))))
+				local hit, dist = QueryRaycast(VecAdd(body_center,Vec(0,1,0)), dir, client.camera.dist, 0.2, false)
 
 				if hit then
 					dist = dist - 0.2
@@ -1073,7 +1075,7 @@ function client.SetupScreen(dt)
 							key = "savegame.mod.settings.tauntReload",
 							label = "Forced taunt",
 							info ="Players get a taunt every X seconds. After reaching 10 they will be forced to taunt. Configure how quickly a player Recieves a new taunt.",
-							options = { { label = "10 Seconds", value = 10},  { label = "20 Seconds", value = 20}, { label = "30 Seconds", value = 30}, { label = "60 Seconds", value = 60}, { label = "Disable Forced Taunt", value = 1000000}   }
+							options = { { label = "20 Seconds", value = 20}, { label = "30 Seconds", value = 30}, { label = "60 Seconds", value = 60}, { label = "Disable Forced Taunt", value = 1000000} ,{ label = "10 Seconds", value = 10},   }
 						}
 					}
 				}
