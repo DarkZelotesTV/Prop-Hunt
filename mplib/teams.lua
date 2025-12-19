@@ -239,8 +239,8 @@ function teamsTick(dt)
     end
 
     if shared._teamState.state == _DONE then
-       
-        for p in PlayersAdded() do
+
+        for p in PlayersAdded() do 
             _teamsAssignPlayers()
         end
 
@@ -337,7 +337,7 @@ function teamsDraw(dt)
     UiMakeInteractive()
     SetBool("game.disablemap", true)
 
-    local teamCount = #shared._teamState.teams
+    local teamCount = 2
 
     local teamBoxWidth = 292
     local teamBoxHeight = 376
@@ -419,6 +419,7 @@ end
 function _teamsAssignPlayers()
     -- Hiders team has team ID 1
     local allPlayers = GetAllPlayers()
+
     if not teamsIsSetup() then
         local allPlayers = GetAllPlayers()
         local totalPlayers = #allPlayers
@@ -472,6 +473,18 @@ function _teamsAssignPlayers()
         for _, player in ipairs(neutralPlayers) do
             shared._teamState.teams[1].players[#shared._teamState.teams[1].players + 1] = player
         end
+    elseif server.lobbySettings.midGameJoin == 0 then
+        local neutralPlayers = {}
+        for _, p in ipairs(allPlayers) do
+            if teamsGetTeamId(p) == 0 then
+                neutralPlayers[#neutralPlayers + 1] = p
+            end
+        end
+
+        -- Rejoining players or new players will always be hunters 
+        for _, player in ipairs(neutralPlayers) do
+            shared._teamState.teams[3].players[#shared._teamState.teams[3].players + 1] = player
+        end
     else
         local neutralPlayers = {}
         for _, p in ipairs(allPlayers) do
@@ -489,7 +502,6 @@ function _teamsAssignPlayers()
     local teamColors = {}
     for i=1,#shared._teamState.teams do
         teamColors[1 + #teamColors] = teamsGetColor(i)
-
     end
 
     PostEvent("teamsupdated", teamsGetPlayerTeamsList(), teamColors)

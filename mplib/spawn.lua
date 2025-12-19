@@ -194,6 +194,8 @@ function spawnTick(dt, playerGroupList)
 
         if _spawnState.forceRespawn[p] then
             doRespawn = true
+        elseif teamsGetName(teamsGetTeamId(p)) == "Spectator" then
+            doRespawn = false
         elseif _spawnState.deadTime[p] == nil then
             _spawnState.deadTime[p] = 0.0
         elseif GetPlayerHealth(p) <= 0.0 then

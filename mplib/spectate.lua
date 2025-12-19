@@ -88,7 +88,7 @@ _spectateState = {
 -- specateTick(teamsGetLocalTeamPlayers()) -- will spectate all players in the local team
 
 function spectateTick(playerList)
-	if GetPlayerHealth() <= 0.0 then	
+	if GetPlayerHealth() <= 0.0 or teamsGetTeamId(GetLocalPlayer()) == 3 then	
 		if not _spectateState.enabled then
 			_enableSpectate()
 		end
@@ -127,10 +127,6 @@ function spectateTick(playerList)
 			filtered[#filtered + 1] = p
 		end
 	end
-
-	-- Make sure the local player is always first in the list,
-	local localPlayer = GetLocalPlayer()
-	table.insert(filtered, 1, localPlayer)
 
     _spectateState.playerList = filtered
     if #filtered == 0 then
