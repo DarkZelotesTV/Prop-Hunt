@@ -110,23 +110,51 @@ function spectateTick(playerList)
 		return
 	end
 
+	
     -- Build a filtered copy
 	local filtered = {}
 	local seen = {}
 
-	for i = 1, #playerList do
-		local p = playerList[i]
+	if teamsGetTeamId(GetLocalPlayer()) == 3 then -- Spectators can watch anyone
+		for i = 1, #playerList do
+			local p = playerList[i]
 
-		-- skip local here; we'll insert it explicitly at index 1 later
-		if not IsPlayerLocal(p)
-			and IsPlayerValid(p)
-			and not IsPlayerDisabled(p)
-			and not seen[p]
-		then
-			seen[p] = true
-			filtered[#filtered + 1] = p
+			-- skip local here; we'll insert it explicitly at index 1 later
+			if not IsPlayerLocal(p)
+				and IsPlayerValid(p)
+				and not IsPlayerDisabled(p)
+				and teamsGetTeamId(p) ~= 3 -- Cant specatate other spectators
+				and not seen[p]
+			then
+				seen[p] = true
+				filtered[#filtered + 1] = p
+			end
+		end
+	else -- Hiders cant spectate they are either spectator or hunters. Therefor are not allowed to see any hiders
+		for i = 1, #playerList do
+			local p = playerList[i]
+			
+			-- skip local here; we'll insert it explicitly at index 1 later
+			if not IsPlayerLocal(p)
+				and IsPlayerValid(p)
+				and not IsPlayerDisabled(p)
+				and not seen[p]
+				and teamsGetTeamId(p) ~= 1
+				and teamsGetTeamId(p) ~= 3 -- Cant specatate other spectators
+			then
+				DebugPrint(i)
+				seen[p] = true
+				filtered[#filtered + 1] = p
+			end
 		end
 	end
+
+	--if #filtered == 0 then -- If there is only one hunter then he shouldnt be able to spectate anyone
+	--	local localPlayer = GetLocalPlayer()
+	--	table.insert(filtered, 1, localPlayer)
+	--end
+
+
 
     _spectateState.playerList = filtered
     if #filtered == 0 then
@@ -177,6 +205,7 @@ function spectateDraw()
 
     if InputPressed("lmb") then
         _switchPlayer(true)
+		DebugPrint("switch")
     elseif InputPressed("rmb") then
         _switchPlayer(false)
     end

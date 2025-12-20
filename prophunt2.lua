@@ -17,6 +17,7 @@ server.lobbySettings.bluetideTimer = 0
 server.lobbySettings.tauntReload = 0
 server.lobbySettings.midGameJoin = 0 
 server.lobbySettings.hiderHunters = 0
+server.lobbySettings.enableSizeLimits = 1
 
 server.game = {}
 server.game.time = 0
@@ -40,6 +41,7 @@ shared.game = {}
 shared.game.time = 0
 shared.game.hunterFreed = false
 shared.game.nextHint = 0
+shared.game.enableSizeLimits = true
 
 shared.stats = {}
 shared.stats.hiders = {}
@@ -51,6 +53,7 @@ client.game.hider = {}
 client.game.hider.lookAtShape = -1
 client.game.hider.hiderOutline = {}
 client.game.hider.triedHiding = false
+
 
 client.hint = {}
 client.hint.closestPlayerHint = {}
@@ -89,7 +92,7 @@ function server.init()
 	hudAddUnstuckButton()
 	teamsInit(3)
 	teamsSetNames({ "Hiders", "Hunters" ,"Spectator"})
-	teamsSetColors { { 0, 0.95, 0.85 }, { 1, 0, 0 }, {1,1,1} }
+	teamsSetColors { { 0, 0.95, 0.85 }, { 1, 0, 0 }, {0.8,0.8,0.8} }
 
 	statsInit()
 
@@ -117,10 +120,14 @@ function server.start(settings)
 	server.lobbySettings.tauntReload = settings.tauntReload
 	server.lobbySettings.midGameJoin = settings.midGameJoin
 	server.lobbySettings.hiderHunters = settings.hiderHunters
+	DebugPrint(settings.hiderHunters.. "what")
 	server.lobbySettings.hints = settings.hints
+	server.lobbySettings.enableSizeLimits = settings.enableSizeLimits
 
 	server.game.hunterHintTimer = settings.hunterHinttimer
 	--server.lobbySettings.joinHunters = settings.joinHunters
+
+	shared.game.enableSizeLimits = settings.enableSizeLimits
 
 	if settings.pipeBombTimer == -1 then
 		server.game.hunterPIpeBombEnabled = false
@@ -155,7 +162,8 @@ function server.deadTick()
 				shared.hiders[id] = {}
 				server.game.respawnQueue[id] = true
 
-				if server.lobbySettings.hiderHunters then
+				DebugPrint(server.lobbySettings.hiderHunters)
+				if server.lobbySettings.hiderHunters == 1 then
 					teamsAssignToTeam(id, 2)
 				else
 					teamsAssignToTeam(id, 3)
@@ -892,7 +900,7 @@ function client.HighlightDynamicBodies()
 				local voxelCount = GetShapeVoxelCount(shape)
 
 				local unqualified = false
-				if x > 70 or y > 70 or z > 70 or voxelCount < 150 then
+				if (x > 70 or y > 70 or z > 70 or voxelCount < 150) and not shared.game.enableSizeLimits then
 					unqualified = true
 				else
 					DrawBodyOutline(body, 1, 1, 1, 1)
@@ -1094,10 +1102,10 @@ function client.SetupScreen(dt)
 							key = "savegame.mod.settings.hideTime",
 							label = "Hide Time",
 							info = "How much time hiders have to hide",
-							options = {{ label = "00:30", value = 30}, { label = "00:45", value = 45 }, { label = "01:00", value = 60 }, { label = "01:30", value = 90 }, { label = "02:00", value = 120 },  }
+							options = {{ label = "00:30", value = 2}, { label = "00:45", value = 45 }, { label = "01:00", value = 60 }, { label = "01:30", value = 90 }, { label = "02:00", value = 120 },  }
 						},
 						{
-							key = "savegame.mod.settings.joinHunters",
+							key = "savegame.mod.settings.hiderHunters",
 							label = "Hider Hunters",
 							info = "Makes the hiders join the hunters once found.",
 							options = { { label = "Enable", value = 1 }, { label = "Disable", value = 0 } }
@@ -1168,6 +1176,12 @@ function client.SetupScreen(dt)
 							label = "Hunter Hints",
 							info ="Enable or disable hints.",
 							options = { { label = "Enable", value = 1 }, { label = "Disable", value = 0 } }
+						},
+						{
+							key = "savegame.mod.settings.enableSizeLimits",
+							label = "Size Limits",
+							info ="Enable Size limits.",
+							options = { { label = "Enable", value = 1 }, { label = "Disable", value = 0 } }
 						}
 					}
 				}
@@ -1186,9 +1200,10 @@ function client.SetupScreen(dt)
 					bluetideTimer = GetInt("savegame.mod.settings.blueTide"),
 					hunterHinttimer = GetInt("savegame.mod.settings.hintTimer"),
 					tauntReload = GetInt("savegame.mod.settings.tauntReload"),
-					hunterHiders = GetInt("savegame.mod.settings.hunterHiders"),
+					hiderHunters = GetInt("savegame.mod.settings.hiderHunters"),
 					midGameJoin = GetInt("savegame.mod.settings.midGameJoin"),
 					hints = GetInt("savegame.mod.settings.hints"),
+					enableSizeLimits = GetInt("savegame.mod.settings.enableSizeLimits")
 				--joinHunters = GetInt("savegame.mod.settings.joinHunters")
 				})
 			end
