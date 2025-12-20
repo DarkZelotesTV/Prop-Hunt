@@ -36,6 +36,8 @@ server.hunters = {}
 server.hunters.hunter = {}
 server.hiders = {}
 
+server.added = {}
+
 shared.hiders = {}
 shared.game = {}
 shared.game.time = 0
@@ -189,6 +191,8 @@ end
 function server.tick(dt)
 	-- AutoInspectWatch(shared, " ", 3, " ", false)
 
+	newPlayerJoinRoutine()
+
 	if teamsTick(dt) then
 		spawnRespawnAllPlayers()
 
@@ -267,16 +271,17 @@ function server.tick(dt)
 
 	if server.game.hunterFreed == false then
 		local data, finished = GetEvent("countdownFinished", 1)
-
 		for id in Players() do
 			if teamsGetTeamId(id) == 2 then
 				if data == "hidersHiding" and finished then
 					spawnRespawnPlayer(id)
-
+					
+					if server.game.hunterFreed then 
+						eventlogPostMessage({ "loc@EVENT_GLHF" })
+					end
 					server.game.hunterFreed = true
 					shared.game.hunterFreed = true
 
-					eventlogPostMessage({ "loc@EVENT_GLHF" })
 				else
 					SetPlayerTransform(Transform(Vec(0, 10000, 0)), id)
 					SetPlayerVelocity(Vec(0, 0, 0), id)
@@ -287,6 +292,30 @@ function server.tick(dt)
 	end
 
 	for id in Players() do
+
+		-- build a quick lookup table for loadout tools
+		local loadout = {}
+		if teamsGetTeamId(id) == 1 then
+			loadout = { {"taunt", 1 } }
+		elseif teamsGetTeamId(id) == 2 then
+			loadout = { { "gun", 3 }, { "pipebomb", 0 }, { "steroid", 0 } }
+		end
+
+		local loadoutSet = {}
+		for i = 1, #loadout do
+			loadoutSet[loadout[i][1]] = true
+		end
+
+		local tools = ListKeys("game.tool") or {}
+		for ti = 1, #tools do
+			local tool = tools[ti]
+			-- only disable tools NOT in the loadout
+			if not loadoutSet[tool] then
+				SetToolEnabled(tool, false, id)
+				SetToolAmmo(tool, 0, id)
+			end
+		end
+
 		if teamsGetTeamId(id) == 1 then
 			server.hiderTick(id)
 		elseif teamsGetTeamId(id) == 2 then
@@ -314,26 +343,42 @@ function server.tick(dt)
 end
 
 function newPlayerJoinRoutine()
-	local loadout = {{ "gun", 3 }, { "pipebomb", 0 }, { "steroid", 0 }}
 	for id in PlayersAdded() do
-		if server.lobbySettings.midGameJoin then
-			spawnRespawnPlayer(id)
-			eventlogPostMessage({id, " Joined the game"  })
-		else
-			eventlogPostMessage({id, " Spectates the game"  })
-		end
-
-		if loadout ~= nil then
-			local tools = ListKeys("game.tool")
-			for ti=1, #tools do
-				local tool = tools[ti]
-				SetToolEnabled(tool, false, id)
-				SetToolAmmo(tool, 0, id)
+		DebugPrint(id)
+		if teamsIsSetup() then
+			if server.lobbySettings.midGameJoin == 1 then
+				spawnRespawnPlayer(id)
+				eventlogPostMessage({ id, " Joined the game" }, 5)
+			else
+				eventlogPostMessage({ id, " Joined as a spectator" }, 5)
 			end
 
-			for i=1,#loadout do
+			-- build a quick lookup table for loadout tools
+			local loadout = {}
+			if teamsGetTeamId(id) == 1 then
+				loadout = { {"taunt", 1} }
+			elseif teamsGetTeamId(id) == 2 then
+				loadout = { { "gun", 3 }, { "pipebomb", 0 }, { "steroid", 0 } }
+			end
+
+			local loadoutSet = {}
+			for i = 1, #loadout do
+				loadoutSet[loadout[i][1]] = true
+			end
+
+			local tools = ListKeys("game.tool") or {}
+			for ti = 1, #tools do
+				local tool = tools[ti]
+				-- only disable tools NOT in the loadout
+				if not loadoutSet[tool] then
+					SetToolEnabled(tool, false, id)
+					SetToolAmmo(tool, 0, id)
+				end
+			end
+
+			-- enable loadout tools
+			for i = 1, #loadout do
 				SetToolEnabled(loadout[i][1], true, id)
-				SetToolAmmo(loadout[i][1], loadout[i][2], id)
 			end
 
 			-- make the first tool in loadout the active tool
@@ -342,6 +387,9 @@ function newPlayerJoinRoutine()
 			else
 				SetPlayerTool("none", id)
 			end
+
+		else
+			eventlogPostMessage({id, "Joined the game" , textColor   = {0, 1, 0}})
 		end
 	end
 end
@@ -900,10 +948,22 @@ function client.HighlightDynamicBodies()
 				local voxelCount = GetShapeVoxelCount(shape)
 
 				local unqualified = false
-				if (x > 70 or y > 70 or z > 70 or voxelCount < 150) and not shared.game.enableSizeLimits then
-					unqualified = true
+				if shared.game.enableSizeLimits == 1 then
+					if (x > 70 or y > 70 or z > 70 or voxelCount < 150) then
+						unqualified = true
+					else
+						DrawBodyOutline(body, 1, 1, 1, 1)
+					end
 				else
-					DrawBodyOutline(body, 1, 1, 1, 1)
+					if voxelCount < 20
+						or not ((x > 1 and y > 1)
+							or (x > 1 and z > 1)
+							or (y > 1 and z > 1))
+					then
+						unqualified = true
+					else
+						DrawBodyOutline(body, 1, 1, 1, 1)
+					end
 				end
 
 				local lookAtShape = playerGetLookAtShape(10, GetLocalPlayer())
@@ -989,6 +1049,7 @@ function client.draw(dt)
 	hudDrawTitle(dt, "Prophunt!")
 	hudDrawBanner(dt)
 	hudTick(dt)
+	eventlogDraw(dt, teamsGetPlayerColorsList())
 
 	if not client.SetupScreen(dt) then return end -- If Setup not complete dont proceed
 
@@ -1058,8 +1119,6 @@ function client.draw(dt)
 	if teamsGetTeamId(GetLocalPlayer()) == 1 then
 		client.DrawTransformPrompt()
 	end
-
-	eventlogDraw(dt, teamsGetPlayerColorsList())
 end
 
 function client.highlightPlayer(body)
@@ -1102,7 +1161,7 @@ function client.SetupScreen(dt)
 							key = "savegame.mod.settings.hideTime",
 							label = "Hide Time",
 							info = "How much time hiders have to hide",
-							options = {{ label = "00:30", value = 2}, { label = "00:45", value = 45 }, { label = "01:00", value = 60 }, { label = "01:30", value = 90 }, { label = "02:00", value = 120 },  }
+							options = {{ label = "00:30", value = 30}, { label = "00:45", value = 45 }, { label = "01:00", value = 60 }, { label = "01:30", value = 90 }, { label = "02:00", value = 120 },  }
 						},
 						{
 							key = "savegame.mod.settings.hiderHunters",
@@ -1317,7 +1376,7 @@ function getPlayerStats()
 		if teamsGetTeamId(id) == 3 then
 			spectators[#spectators+1] = {
 				player = id,
-				columns = "Spectator"
+				columns = {"Spectator"}
 			}
 		end
 	end
