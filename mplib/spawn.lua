@@ -214,6 +214,8 @@ function spawnTick(dt, playerGroupList)
             local teams = teamsGetTotalTeamsCount()
             for i=1,teams do
                 if teamsGetTeamId(p) == i then 
+                    DebugPrint("Respawning player "..p.." in team "..i)
+                    AutoInspect(_spawnState.defaultLoadout[i], 2," ", false)
                     spawnSpawnPlayer(t, _spawnState.defaultLoadout[i], p)
                 end
             end
