@@ -1455,9 +1455,28 @@ end
 -- @return[type=bool] finished `true` when the animation has fully finished.
 function hudDrawResultsAnimation(time, text, backgroundColor)
 	backgroundColor = backgroundColor or COLOR_BLACK_TRNSP
-	
+
+	function GetCenterOfVectors(players)
+		if #players == 0 then
+			return nil
+		end
+
+		local sum = Vec(0, 0, 0)
+
+		for _, v in ipairs(players) do
+			sum = VecAdd(sum, GetPlayerTransform(v).pos)
+		end
+
+		return VecScale(sum, 1 / #players)
+	end
+
 	if not _resultsAnimCamPos then
-		_resultsAnimCamPos = GetPlayerCameraTransform().pos
+		local pos = GetCenterOfVectors(teamsGetTeamPlayers(1))
+		if pos ~= nil then
+			_resultsAnimCamPos = VecCopy(pos)
+		else
+			_resultsAnimCamPos = GetPlayerCameraTransform().pos
+		end
 		_resultsAnimCamRot = GetPlayerCameraTransform().rot
 	end
 
@@ -1472,9 +1491,13 @@ function hudDrawResultsAnimation(time, text, backgroundColor)
 		UiSound("ui/win-end.ogg")
 		endSoundPlayed = true
 	end
-	
-    local camPos = VecScale(Vec(math.sin(_resultsAnimTime*0.025), 1.0, math.cos(_resultsAnimTime*0.025)), 50.0)
-    local camRot = QuatLookAt(camPos, Vec(0, 0, 0))
+
+
+
+	local orbitOffset = VecScale(Vec(math.sin(_resultsAnimTime*0.025), 1.0, math.cos(_resultsAnimTime*0.025)), 50.0)
+	local camPos = VecAdd(_resultsAnimCamPos, orbitOffset)
+	local camRot = QuatLookAt(camPos, _resultsAnimCamPos)
+
 
 	local param = smoothstep(0, 1, clamp(time*0.5, 0, 1))
 
