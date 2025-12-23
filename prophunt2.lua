@@ -44,6 +44,9 @@ shared.game.time = 0
 shared.game.hunterFreed = false
 shared.game.enableSizeLimits = true
 
+shared.game.hint = {}
+shared.game.hint.circleHint = {}
+
 shared.stats = {}
 shared.stats.hiders = {}
 shared.stats.OriginalHunters = {}
@@ -66,6 +69,7 @@ client.hint.closestPlayerArrowHint = {}
 client.hint.closestPlayerArrowHint.transform = Transform()
 client.hint.closestPlayerArrowHint.timer = 0
 client.hint.closestPlayerArrowHint.player = 0
+
 
 client.hint.meow = {}
 client.hint.meow.timer = 0
@@ -241,9 +245,9 @@ function server.tick(dt)
 	end
 
 
-	--if InputPressed("k") then 
-	--	server.game.time = 60
-	--end
+	if InputPressed("k") then 
+		server.game.time = 1
+	end
 
 	spawnTick(dt, teamsGetPlayerTeamsList())
 	eventlogTick(dt)
@@ -327,6 +331,8 @@ function server.tick(dt)
 		--	end
 		--end
 
+		SetToolEnabled("sledge", false, id)
+
 		if teamsGetTeamId(id) == 1 then
 			server.hiderTick(id)
 		elseif teamsGetTeamId(id) == 2 then
@@ -338,7 +344,22 @@ function server.tick(dt)
 		server.game.hunterHintTimer = server.game.hunterHintTimer - dt
 		if server.game.hunterHintTimer < 0 then
 			server.game.hunterHintTimer = server.lobbySettings.hunterHinttimer
-			server.TriggerHint()
+			for id in Players() do 
+				if teamsGetTeamId(id) == 2 then 
+					server.TriggerHint(id, 1)
+				elseif teamsGetTeamId(id) == 1 then
+					server.TriggerHint(id, 2)
+				end
+			end
+			server.circleHint()
+		end
+		
+		for i=1, #shared.game.hint.circleHint do
+			if shared.game.hint.circleHint[i].timer > 0 then
+				shared.game.hint.circleHint[i].timer = shared.game.hint.circleHint[i].timer - dt
+			else
+				table.remove(shared.game.hint.circleHint, i)
+			end
 		end
 	end
 
@@ -404,6 +425,67 @@ function newPlayerJoinRoutine()
 	end
 end
 
+function server.circleHint()
+    local timeLeft = server.game.time
+    local hiders = teamsGetTeamPlayers(1)
+
+    -- Only trigger in the last 3 minutes
+    if timeLeft > 180 and #shared.game.hint.circleHint == 0 then
+        return
+    end
+
+    -- Determine radius / This is actually the diamter
+    local radius
+    if #hiders == 1 and timeLeft <= 60 then
+        radius = 25 + #teamsGetTeamPlayers(2) * 2 
+    elseif timeLeft > 120 then      -- between 3 and 2 minutes left
+        radius = 50
+    elseif timeLeft > 60 then       -- between 2 and 1 minutes left
+        radius = 35
+    else                            -- last minute
+        radius = 25
+    end
+
+    -- Reset the circle hint table
+    shared.game.hint.circleHint = {}
+
+    -- Add a transform for each hider
+    for _, hiderId in ipairs(hiders) do
+        local hiderTransform = nil
+        if shared.hiders[hiderId] then
+            local propBody = shared.hiders[hiderId].propBody or -1
+            if propBody ~= -1 then
+                hiderTransform = GetBodyTransform(propBody)
+            else
+                hiderTransform = GetPlayerTransform(hiderId)
+            end
+        end
+
+		if hiderTransform then
+
+			local maxOffset = radius * 0.5
+			local offsetX = (math.random() - math.random() - math.random()) * (maxOffset / 1.5) * 0.8
+			local offsetZ = (math.random() - math.random() - math.random()) * (maxOffset / 1.5) * 0.8
+
+
+			local _,bb = GetBodyBounds(GetWorldBody())
+
+			local hintPos = {
+                hiderTransform.pos[1] + offsetX,
+                bb[2],       -- Keep Y (height) the same
+                hiderTransform.pos[3] + offsetZ
+            }
+
+            local hintTransform = Transform(hintPos, QuatEuler(90,0,0))
+            shared.game.hint.circleHint[#shared.game.hint.circleHint + 1] = {}
+			shared.game.hint.circleHint[#shared.game.hint.circleHint].transform = hintTransform
+			shared.game.hint.circleHint[#shared.game.hint.circleHint].radius = radius
+			shared.game.hint.circleHint[#shared.game.hint.circleHint].playerid = hiderId
+			shared.game.hint.circleHint[#shared.game.hint.circleHint].timer = 29
+		end
+    end
+end
+
 
 
 
@@ -434,92 +516,196 @@ function server.hunterTick(id)
 	end
 end
 
-function server.TriggerHint()
-	-- Only trigger in first 20% of round time
-	--if server.game.time > (server.lobbySettings.roundLength * 0.2) then
-	--	return
-	--end
+function server.TriggerHint(id, teamId)
+	local closestPlayer, closestDist, closestTransform = server.GetClosestPlayer(id, teamId)
 
-	if server.lobbySettings.hints == 0 then
+	if not closestPlayer
+		or not closestDist
+		or closestDist == math.huge then
 		return
 	end
 
-	for myId in Players() do
-		local closestDist = math.huge
-		local cloestTransform = Transform()
-		local closestPlayer = 0
+	if not closestPlayer or not closestDist then
+		return
+	end
 
-		-- Get my transform depending on team
-		local myTransform
-		if teamsGetTeamId(myId) == 1 then
-			-- Hider
-			local myBody = shared.hiders[myId].propBody ~= -1
-			if myBody then
-				myTransform = GetBodyTransform(shared.hiders[myId].propBody)
-			else
-				myTransform = GetPlayerTransform(myId)
-			end
-		elseif teamsGetTeamId(myId) == 2 then
-			-- Hunter
-			myTransform = GetPlayerTransform(myId)
+	local TEAM_HIDERS = 1
+	local TEAM_HUNTERS = 2
+
+	local hiders = #teamsGetTeamPlayers(TEAM_HIDERS)
+	local hunters = #teamsGetTeamPlayers(TEAM_HUNTERS)
+
+	-- ========================
+	-- Balance rules
+	-- ========================
+	local function CanShowDetailedHint()
+		local remainingTime = server.lobbySettings.roundLength - server.game.time
+
+		if hiders == 1 then
+			return remainingTime <= 120
 		end
 
-		if myTransform then
-			for otherId in Players() do
-				if myId ~= otherId and teamsGetTeamId(myId) ~= teamsGetTeamId(otherId) then
-					-- Get other player transform
-					local otherTransform
-					if teamsGetTeamId(otherId) == 1 then
-						local otherBody = shared.hiders[myId].propBody ~= -1
-						if otherBody then
-							otherTransform = GetBodyTransform(otherBody)
-						else
-							otherTransform = GetPlayerTransform(otherId)
-						end
-					elseif teamsGetTeamId(otherId) == 2 then
-						otherTransform = GetPlayerTransform(otherId)
-					end
+		if hunters >= 5 then
+			return server.game.time >= 300
+		end
 
-					if otherTransform then
-						local dist = VecLength(VecSub(myTransform.pos, otherTransform.pos))
-						if dist < closestDist then
-							closestDist = dist
-							cloestTransform = otherTransform
-							closestPlayer = otherId
-						end
-					end
+		if hunters == 1 and hiders > 1 then
+			return remainingTime <= 180
+		end
+
+		if hunters == 2 and hiders >= 2 then
+			return remainingTime <= 120
+		end
+
+		return true
+	end
+
+	-- ========================
+	-- Distance accuracy
+	-- ========================
+	local function GetShownDistance(dist)
+		if server.game.time < server.lobbySettings.roundLength * 0.5 then
+			return math.floor(dist / 5) * 5
+		end
+		return math.floor(dist * 10) / 10
+	end
+
+	-- ========================
+	-- Message construction
+	-- ========================
+	local myTeam = teamsGetTeamId(id)
+	local targetName = (myTeam == TEAM_HUNTERS) and "hider" or "hunter"
+
+	local shownDist = GetShownDistance(closestDist)
+
+	local message
+	if targetName == "hider" and closestDist <= 5 then
+		message = "The hider is very close"
+	else
+		message =
+			"The closest " .. targetName .. " is " .. shownDist .. " meters away"
+	end
+
+
+	-- ========================
+	-- Detail gating
+	-- ========================
+	local showDetail =
+		closestTransform
+		and CanShowDetailedHint()
+		and closestDist < 30
+
+	-- Last hider gets no vertical detail
+	if hiders == 1 and myTeam == TEAM_HIDERS then
+		showDetail = false
+	end
+
+	if showDetail then
+		local myPos = GetPlayerTransform(id).pos[2]
+
+		if closestTransform.pos[2] < myPos + 2.5
+			and closestTransform.pos[2] > myPos - 2.5 then
+			message = message .. " and is level with you."
+		elseif closestTransform.pos[2] > myPos then
+			message = message .. " and is above you."
+		else
+			message = message .. " and is below you."
+		end
+	else
+		message = message .. "."
+	end
+
+	-- ========================
+	-- Client message
+	-- ========================
+	ClientCall(
+		id,
+		"client.hintShowMessage",
+		message,
+		5
+	)
+--
+	---- ========================
+	---- Direction arrow (hunters only)
+	---- ========================
+	--if myTeam == TEAM_HUNTERS
+	--	and closestTransform
+	--	and CanShowDetailedHint()
+	--	and server.game.time < (server.lobbySettings.roundLength * 0.7)
+	--	and closestDist > 50 then
+--
+	--	ClientCall(
+	--		id,
+	--		"client.hintShowArrow",
+	--		closestTransform,
+	--		closestPlayer,
+	--		5
+	--	)
+	--end
+end
+
+
+
+function server.GetClosestPlayer(id, teamId)
+	local closestDist = math.huge
+	local closestPlayer = nil
+	local closestTransform = nil
+
+	-- Get source player transform
+	local myTransform = nil
+	if teamsGetTeamId(id) == 1 then
+		local myBody = shared.hiders[id] and shared.hiders[id].propBody or -1
+		if myBody ~= -1 then
+			myTransform = GetBodyTransform(myBody)
+		else
+			myTransform = GetPlayerTransform(id)
+		end
+	elseif teamsGetTeamId(id) == 2 then
+		myTransform = GetPlayerTransform(id)
+	end
+
+	if not myTransform then
+		return nil, nil
+	end
+
+	-- Search only players in the given team
+	for _, otherId in ipairs(teamsGetTeamPlayers(teamId)) do
+		if otherId ~= id then
+			local otherTransform = nil
+
+			if teamsGetTeamId(otherId) == 1 then
+				local otherBody = shared.hiders[otherId] and shared.hiders[otherId].propBody or -1
+				if otherBody ~= -1 then
+					otherTransform = GetBodyTransform(otherBody)
+				else
+					otherTransform = GetPlayerTransform(otherId)
+				end
+			elseif teamsGetTeamId(otherId) == 2 then
+				otherTransform = GetPlayerTransform(otherId)
+			end
+
+			if otherTransform then
+				local dist = VecLength(VecSub(myTransform.pos, otherTransform.pos))
+				if dist < closestDist then
+					closestDist = dist
+					closestPlayer = otherId
+					closestTransform = otherTransform
 				end
 			end
 		end
-
-		local detail  
-		if server.game.time < (server.lobbySettings.roundLength * 0.7) then 
-			local myPos = GetPlayerTransform(myId).pos[2]
-			-- if closestransform within 3 meters on z pos its level if higher its higher if lower its lower
-			if cloestTransform.pos[2] < myPos + 2.5 and cloestTransform.pos[2] > myPos - 2.5 then
-				detail = "and is level with you."
-			elseif cloestTransform.pos[2] > myPos then
-				detail = "and is above you."
-			else
-				detail = "and is below you."
-			end
-		end
-
-		if closestDist < math.huge then
-			ClientCall(myId, "client.hintShowCloestPlayer", math.floor(closestDist * 10) / 10, 5, detail)
-		end
-
-		if server.game.time < (server.lobbySettings.roundLength * 0.7) and closestDist > 50 then
-			ClientCall(myId, "client.hintShowArrow", cloestTransform, closestPlayer, 5)
-		end
 	end
+
+	return closestPlayer, closestDist, closestTransform
 end
+
 
 
 function server.hiderTick(id)
 	if teamsIsSetup() then
 		SetPlayerParam("healthRegeneration", false, id)
 		SetPlayerVehicle(0, id)
+
+		SetPlayerTool("taunt", id)
 
 		if shared.game.hunterFreed then
 			local dt = GetTimeStep()
@@ -544,10 +730,13 @@ function server.hiderTick(id)
 
 		if shared.hiders[id].propBody ~= -1 then
 			SetPlayerHidden(id)
-			if GetPlayerGrabBody() == shared.hiders[id].propBody then
-				ReleasePlayerGrab()
+			for _, playerId in ipairs(teamsGetTeamPlayers(1)) do
+				if shared.hiders[playerId] and GetPlayerGrabBody() == shared.hiders[playerId].propBody then
+					ReleasePlayerGrab()
+				end
 			end
-			
+	
+
 			if not shared.hiders[id].isPropPlaced then
 				SetPlayerParam("collisionMask", 255 - 4, id)
 			else
@@ -801,6 +990,7 @@ end
 function client.init()
 	client.arrow = LoadSprite("assets/arrow.png")
 	client.rect = LoadSprite("gfx/white.png")
+	client.circle = LoadSprite("gfx/ring.png")
 end
 
 function client.tick()
@@ -1003,11 +1193,10 @@ function client.highlightClippingProps()
     end
 end
 
-function client.hintShowCloestPlayer(dist, timer, detailed)
+function client.hintShowMessage(message, timer)
 	client.hint.closestPlayerHint = {}
-	client.hint.closestPlayerHint.distance = dist
 	client.hint.closestPlayerHint.timer = timer
-	client.hint.closestPlayerHint.detailed = detailed
+	client.hint.closestPlayerHint.message = message
 end
 
 function client.hintShowArrow(transform, player, timer)
@@ -1020,16 +1209,8 @@ end
 function client.showHint()
 	if client.hint.closestPlayerHint.timer > 0 then
 
-		local detail = ""
 		if client.hint.closestPlayerHint.detailed then detail =  client.hint.closestPlayerHint.detailed end
-
-
-		if teamsGetTeamId(GetLocalPlayer()) == 1 then
-			hudDrawInformationMessage("The closest hunter is " .. client.hint.closestPlayerHint.distance .. " meters away ".. detail, 1)
-		elseif teamsGetTeamId(GetLocalPlayer()) == 2 then
-			hudDrawInformationMessage("The closest hider is " .. client.hint.closestPlayerHint.distance .. " meters away " .. detail, 1)
-		end
-
+		hudDrawInformationMessage(client.hint.closestPlayerHint.message)
 		client.hint.closestPlayerHint.timer = client.hint.closestPlayerHint.timer - GetTimeStep()
 	end
 
@@ -1052,6 +1233,19 @@ function client.showHint()
 
     	client.hint.closestPlayerArrowHint.timer = client.hint.closestPlayerArrowHint.timer - GetTimeStep()
     end
+
+	-- Loop through all circle hints. Remove after they expire but not in the same loop
+	for i=1, #shared.game.hint.circleHint do
+		if shared.game.hint.circleHint[i].timer > 0 then
+			for j=1, 5 do
+				local c = j
+				if j % 2 == 0 then c = j*-1 end
+				local rot = QuatRotateQuat(QuatAxisAngle(Vec(0,1,0), GetTime()*c), shared.game.hint.circleHint[i].transform.rot)
+				local pos = VecAdd(shared.game.hint.circleHint[i].transform.pos, Vec(0, -j, 0))
+				DrawSprite(client.circle, Transform(pos, rot), shared.game.hint.circleHint[i].radius, shared.game.hint.circleHint[i].radius, 1 , 0, 0, shared.game.hint.circleHint[i].timer/30 , false, false, false)
+			end
+		end
+	end
 end
 
 function client.render(dt)
@@ -1178,7 +1372,7 @@ function client.SetupScreen(dt)
 							key = "savegame.mod.settings.hideTime",
 							label = "Hide Time",
 							info = "How much time hiders have to hide",
-							options = {{ label = "00:30", value = 30}, { label = "00:45", value = 45 }, { label = "01:00", value = 60 }, { label = "01:30", value = 90 }, { label = "02:00", value = 120 },  }
+							options = {{ label = "00:30", value = 3}, { label = "00:45", value = 45 }, { label = "01:00", value = 60 }, { label = "01:30", value = 90 }, { label = "02:00", value = 120 },  }
 						},
 						{
 							key = "savegame.mod.settings.hiderHunters",
