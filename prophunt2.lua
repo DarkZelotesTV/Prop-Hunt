@@ -18,6 +18,7 @@ server.lobbySettings.tauntReload = 0
 server.lobbySettings.midGameJoin = 0 
 server.lobbySettings.hiderHunters = 0
 server.lobbySettings.enableSizeLimits = 1
+server.lobbySettings.friendlyFire = 0
 
 server.game = {}
 server.game.time = 0
@@ -36,6 +37,8 @@ server.game.lastHint = false
 server.hunters = {}
 server.hunters.hunter = {}
 server.hiders = {}
+
+server.moderation = {}
 
 server.added = {}
 
@@ -124,6 +127,7 @@ function server.start(settings)
 	server.lobbySettings.tauntReload = settings.tauntReload
 	server.lobbySettings.midGameJoin = settings.midGameJoin
 	server.lobbySettings.hiderHunters = settings.hiderHunters
+	server.lobbySettings.friendlyFire = settings.friendlyFire
 
 	server.lobbySettings.hints = settings.hints
 	server.lobbySettings.enableSizeLimits = settings.enableSizeLimits
@@ -203,8 +207,26 @@ end
 
 function server.tick(dt)
 	-- AutoInspectWatch(shared, " ", 3, " ", false)
-
+	
 	newPlayerJoinRoutine()
+
+	
+	local victim, attacker = GetEvent("playerdied", 1)
+
+	if attacker and victim and teamsGetTeamId(attacker) == 2 and teamsGetTeamId(victim) == 2 and server.lobbySettings.friendlyFire == 1 and not IsPlayerHost(attacker) then
+
+		-- Ensure table exists
+		server.moderation = server.moderation or {}
+		DebugPrint("huh")
+
+		-- Ensure entry exists
+		server.moderation[attacker] = (server.moderation[attacker] or 0) + 1
+		local name = GetPlayerName(attacker)
+		ClientCall(attacker, "client.friendlyFireWarning", server.moderation[attacker] )
+		if server.moderation[attacker] == 4 then
+			eventlogPostMessage({ name .. " was kicked for friendly fire. Shame." }, 10)
+		end
+	end
 
 	if teamsTick(dt) then
 		spawnRespawnAllPlayers()
@@ -244,9 +266,9 @@ function server.tick(dt)
 	end
 
 
-	if InputPressed("k") then 
-		server.game.time = 1
-	end
+	--if InputPressed("k") then 
+	--	server.game.time = 1
+	--end
 
 	spawnTick(dt, teamsGetPlayerTeamsList())
 	eventlogTick(dt)
@@ -338,6 +360,23 @@ function server.tick(dt)
 			server.hunterTick(id)
 		end
 	end
+
+	if server.game.hunterBulletTimer < 0 then
+		server.game.hunterBulletTimer = server.lobbySettings.hunterBulletTimer
+	end
+
+	if server.game.hunterPipeBombTimer < 0 then
+		server.game.hunterPipeBombTimer = server.lobbySettings.pipeBombTimer
+	end
+
+	if server.game.bluetideTimer < 0 then
+		server.game.bluetideTimer = server.lobbySettings.bluetideTimer
+	end
+
+	local dt = GetTimeStep() -- We do it after the reset so on the next tick we could refill the ammo
+	server.game.hunterBulletTimer = server.game.hunterBulletTimer - dt
+	server.game.hunterPipeBombTimer = server.game.hunterPipeBombTimer - dt
+	server.game.bluetideTimer = server.game.bluetideTimer - dt
 
 	if server.game.hunterFreed and server.lobbySettings.hints == 1 then
 		server.game.hunterHintTimer = server.game.hunterHintTimer - dt
@@ -495,28 +534,18 @@ end
 
 function server.hunterTick(id)
 	if server.game.hunterFreed then
-		local dt = GetTimeStep()
-		server.game.hunterBulletTimer = server.game.hunterBulletTimer - dt
-		server.game.hunterPipeBombTimer = server.game.hunterPipeBombTimer - dt
-		server.game.bluetideTimer = server.game.bluetideTimer - dt
-		
-
 		if server.game.hunterBulletTimer < 0 then
-			server.game.hunterBulletTimer = server.lobbySettings.hunterBulletTimer
 			SetToolAmmo("gun", math.min(GetToolAmmo("gun", id) + 1, 10), id)
 			--SetToolAmmo("pipebomb", math.min(GetToolAmmo("pipebomb", id) + 1, 3), id)
 		end
 
 		if server.game.hunterPipeBombTimer < 0 then
-			server.game.hunterPipeBombTimer = server.lobbySettings.pipeBombTimer
 			SetToolAmmo("pipebomb", math.min(GetToolAmmo("pipebomb", id) + 1, 3), id)
 		end
 
 		if server.game.bluetideTimer < 0 then
-			server.game.bluetideTimer = server.lobbySettings.bluetideTimer
 			SetToolAmmo("steroid", math.min(GetToolAmmo("steroid", id) + 1, 3), id)
 		end
-
 	end
 end
 
@@ -1383,7 +1412,7 @@ function client.SetupScreen(dt)
 							key = "savegame.mod.settings.hideTime",
 							label = "Hide Time",
 							info = "How much time hiders have to hide",
-							options = {{ label = "00:30", value = 3}, { label = "00:45", value = 45 }, { label = "01:00", value = 60 }, { label = "01:30", value = 90 }, { label = "02:00", value = 120 },  }
+							options = {{ label = "00:30", value = 30}, { label = "00:45", value = 45 }, { label = "01:00", value = 60 }, { label = "01:30", value = 90 }, { label = "02:00", value = 120 },  }
 						},
 						{
 							key = "savegame.mod.settings.hiderHunters",
@@ -1463,6 +1492,12 @@ function client.SetupScreen(dt)
 							label = "Size Limits",
 							info ="Enable Size limits.",
 							options = { { label = "Enable", value = 1 }, { label = "Disable", value = 0 } }
+						},
+						{
+							key = "savegame.mod.settings.friendlyFire",
+							label = "Kick Friendly Fire",
+							info ="If enabled players that kill too many players will be kicked.",
+							options = { { label = "Disable", value = 0 }, { label = "Enable", value = 1 } }
 						}
 					}
 				}
@@ -1484,7 +1519,8 @@ function client.SetupScreen(dt)
 					hiderHunters = GetInt("savegame.mod.settings.hiderHunters"),
 					midGameJoin = GetInt("savegame.mod.settings.midGameJoin"),
 					hints = GetInt("savegame.mod.settings.hints"),
-					enableSizeLimits = GetInt("savegame.mod.settings.enableSizeLimits")
+					enableSizeLimits = GetInt("savegame.mod.settings.enableSizeLimits"),
+					friendlyFire = GetInt("savegame.mod.settings.friendlyFire")
 				--joinHunters = GetInt("savegame.mod.settings.joinHunters")
 				})
 			end
@@ -1524,6 +1560,14 @@ function client.tauntForce()
 		UiText("If you get 10 taunts, the game will taunt for you! Already " .. GetToolAmmo("taunt", GetLocalPlayer()) .. " taunts!")
 	end
 	UiPop()
+end
+
+function client.friendlyFireWarning(amount)
+	hudShowBanner("You killed " .. amount .. " players! If you kill more you will get kicked.", {amount/3,0,0})
+
+	if amount == 4 then
+		Menu()
+	end
 end
 
 function client.clippingText()
@@ -1602,7 +1646,6 @@ function getPlayerStats()
 			}
 		end
 	end
-
 
 	stats = {
 		{
