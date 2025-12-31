@@ -1,6 +1,6 @@
 function server.hunterTick()
 
-    server.moveHuntersDuringHideTime()
+    server.huntersDuringHideTime()
     server.friendlyFireRoutine()
 
     if server.timers.hunterBulletReloadTimer < 0 then
@@ -45,7 +45,7 @@ function server.hunterTick()
 
 end
 
-function server.moveHuntersDuringHideTime()
+function server.huntersDuringHideTime()
     if not helperIsHuntersReleased() then
 		local data, finished = GetEvent("countdownFinished", 1)
 
@@ -56,7 +56,7 @@ function server.moveHuntersDuringHideTime()
 
             server.state.hunterFreed = true
             shared.state.hunterFreed = true
-            server.hasPlacedHuntersInRoom = false
+            server.game.hasPlacedHuntersinRoom = false
             --for id in Players() do
             --    SetPlayerParam("godMode", false, id)
             --end
@@ -68,7 +68,7 @@ function server.moveHuntersDuringHideTime()
             local hunter_room_spawn = FindLocation("hunter_spawn_waiting", true)
             local spawn_transform = GetLocationTransform(hunter_room_spawn)
             if IsHandleValid(hunter_room_spawn) then
-                if not server.hasPlacedHuntersInRoom then
+                if not server.game.hasPlacedHuntersinRoom then
                     for _, id in pairs(hunters) do
                         -- room spawned, place all hunters there
                         SetPlayerTransform(spawn_transform, id)
@@ -76,7 +76,7 @@ function server.moveHuntersDuringHideTime()
                         --SetPlayerParam("godMode", true, id) --so that they can't kill each other with velocity to escape
                         --DisablePlayer(id)
                     end
-                    server.hasPlacedHuntersInRoom = true
+                    server.game.hasPlacedHuntersinRoom = true
                 end
             else
                 for _, id in pairs(hunters) do
@@ -88,7 +88,7 @@ function server.moveHuntersDuringHideTime()
             end
 		end
 	else
-        server.hasPlacedHuntersInRoom = false
+        server.game.hasPlacedHuntersinRoom = false
         --for id in Players() do
         --    SetPlayerParam("godMode", false, id)
         --end

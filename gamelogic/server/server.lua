@@ -29,7 +29,6 @@ shared.gameConfig = {
 	enableSizeLimits = true
 }
 
-
 -- Match state (game logic and so on)
 server.state = {
 	time = 0, -- Accurate server only time
@@ -58,6 +57,12 @@ server.assets = {
 	taunt = 0
 }
 
+-- All other game related variables
+server.game = {
+	spawnedForHunterRoom = {}, --stores everything spawned for the waiting room to be deleted in server.destroy
+	hasPlacedHuntersInRoom = false
+}
+
 shared.ui = {}
 shared.ui.currentCountDownName = ""
 shared.ui.stats = {
@@ -67,7 +72,6 @@ shared.ui.stats = {
 
 shared.hint = {
 	circleHint = {},
-	
 }
 
 shared.state = {
@@ -80,8 +84,6 @@ shared.players = {
 	hiders = {},
 	hunters = {}
 }
-
-server.spawnedForHunterRoom = {} --stores everything spawned for the waiting room to be deleted in server.destroy
 
 function server.init()
 	RegisterTool("taunt", "taunt", "", 1)
@@ -103,8 +105,6 @@ function server.init()
 	spawnSetDefaultLoadoutForTeam(2, {{ "gun", 3 }, { "pipebomb", 0 }, { "steroid", 0 }}) -- Hunters
 
 	spawnSetRespawnTime(10)
-
-	server.hasPlacedHuntersInRoom = false
 end
 
 function server.start(settings)
@@ -150,8 +150,8 @@ function server.start(settings)
 
 	--room has to be spawned here and not in init or the screens won't work
 	server.hasPlacedHuntersInRoom = false
-	if #server.spawnedForHunterRoom <= 0 then
-		server.spawnedForHunterRoom = Spawn("MOD/hunter_room.xml", Transform(Vec(0,600,0)), true)
+	if #server.game.spawnedForHunterRoom <= 0 then
+		server.game.spawnedForHunterRoom = Spawn("MOD/hunter_room.xml", Transform(Vec(0,600,0)), true)
 	end
 
 	countdownInit(settings.hideTime, "hidersHiding")
@@ -284,7 +284,7 @@ end
 function server.newPlayerJoinRoutine()
 	for id in PlayersAdded() do
 		if teamsIsSetup() then
-			if server.gameConfig.midGameJoin == 1 then
+			if server.gameConfig.midGameJoin then
 				if helperIsHuntersReleased() then
 					spawnRespawnPlayer(id)
 				else
@@ -358,10 +358,10 @@ function server.destroy()
 		end
 	end
 
-	for i=1, #server.spawnedForHunterRoom do
-		Delete(server.spawnedForHunterRoom[i])
+	for i=1, #server.game.spawnedForHunterRoom do
+		Delete(server.game.spawnedForHunterRoom[i])
 	end
-	server.hasPlacedHuntersInRoom = false
+	server.game.hasPlacedHuntersInRoom = false
 
 	eventlogPostMessage({"Leave a review for Prophunt on the Workshop!"}, 10) -- Wont be actually displayed because the script for handling it will be destroyed
 end
