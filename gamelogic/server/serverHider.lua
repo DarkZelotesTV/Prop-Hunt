@@ -69,7 +69,7 @@ function server.hiderTick(dt)
     end
 end
 
-function server.hiderUpdate(id)
+function server.hiderUpdate()
 	if teamsIsSetup() then
 		for id in Players() do
 			if helperIsPlayerHidden(id) then
@@ -82,14 +82,14 @@ function server.hiderUpdate(id)
                     -- You shouldnt spam this function because every call will put the message in a queue
 					hudShowBanner("Water will damage you, get out as soon as you can.", {0,0,0}) 
 				end
-			end
+				
+				if IsPointInWater(GetPlayerTransform(id).pos) then
+					SetPlayerHealth(GetPlayerHealth(id) - GetTimeStep()/15, id)
+				end
 
-			if IsPointInWater(GetPlayerTransform(id).pos) then
-				SetPlayerHealth(GetPlayerHealth(id) - GetTimeStep()/15, id)
+				server.handlePlayerProp(id)
+				SetLightEnabled(GetFlashlight(id), false)
 			end
-
-			server.handlePlayerProp(id)
-			SetLightEnabled(GetFlashlight(id), false)
 		end
 	end
 end
