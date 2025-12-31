@@ -219,7 +219,7 @@ function server.GetClosestPlayer(id, teamId)
 
 	-- Get source player transform
 	local myTransform = nil
-	if helperIsPlayerHider(id) then
+	if teamsGetTeamId(id) == 1 then
 		local myBody = shared.players.hiders[id] and shared.players.hiders[id].propBody or -1
 		if myBody ~= -1 then
 			myTransform = GetBodyTransform(myBody) -- If player transformed we get his bodytransform
