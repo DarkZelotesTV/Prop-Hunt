@@ -3,6 +3,8 @@
 
 #include "Automatic.lua"
 
+#include "/gamelogic/tauntAPI.lua"
+
 #include /gamelogic/server/server.lua
 
 #include /gamelogic/client/client.lua

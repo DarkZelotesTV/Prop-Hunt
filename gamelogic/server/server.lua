@@ -88,7 +88,8 @@ shared.players = {
 function server.init()
 	RegisterTool("taunt", "taunt", "", 1)
 	server.assets.taunt = LoadSound('MOD/assets/taunt0.ogg')
-
+	TauntAPI.registerTaunt("original", "MOD/assets/taunt0.ogg", 1)
+	
 	hudInit(true)
 	hudAddUnstuckButton()
 	teamsInit(3)

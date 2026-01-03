@@ -128,7 +128,7 @@ end
 -- #TODO: Some say that the server sound sync sucks and its recommended to use ClientCall to execute a playsound locally
 function server.taunt(pos, id)
 	SetToolAmmo("taunt", math.max(GetToolAmmo("taunt", id) - 3 ,1), id)
-	PlaySound(server.assets.taunt,pos,2,true,1)
+	TauntAPI.playTaunt(pos, 2)
 end
 
 function server.handleHiderTaunts(hiderIds)
